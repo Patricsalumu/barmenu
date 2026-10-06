@@ -1,5 +1,5 @@
 <div id="menu-results-content" data-count-label="{{ $products->count() }} produit{{ $products->count() > 1 ? 's' : '' }} disponible{{ $products->count() > 1 ? 's' : '' }}">
-    <div class="product-grid">
+    <div class="product-grid is-list">
         @forelse($products as $product)
             <article class="product-card">
                 <div class="product-top">

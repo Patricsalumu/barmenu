@@ -5,7 +5,7 @@
 @section('content')
     <main>
         <section class="hero">
-            <div class="eyebrow">Bar · Restaurant</div>
+            <div class="eyebrow">{{ $company->activity_type }}</div>
             <h1>{{ $company->name }}</h1>
             <p>{{ $company->slogan }}</p>
             <div class="hero-meta">
@@ -17,6 +17,9 @@
         <section aria-labelledby="menu-heading">
             <div class="section-heading">
                 <div><div class="eyebrow">À découvrir</div><h2 id="menu-heading">Notre carte</h2><p id="result-count" aria-live="polite">{{ $products->count() }} produit{{ $products->count() > 1 ? 's' : '' }} disponible{{ $products->count() > 1 ? 's' : '' }}</p></div>
+                <div class="heading-actions">
+                    <button class="button button-outline button-small" id="toggle-product-view" type="button">Afficher en cartes</button>
+                </div>
             </div>
             <nav class="filters" aria-label="Filtrer par catégorie">
                 <a class="chip {{ !$selectedCategory ? 'active' : '' }}" data-menu-filter href="{{ route('menu', ['q' => $search ?: null]) }}">Tout</a>
@@ -43,8 +46,16 @@
             const results = document.getElementById('menu-results');
             const count = document.getElementById('result-count');
             const filters = document.querySelector('.filters');
+            const toggleView = document.getElementById('toggle-product-view');
+            let cardView = false;
             let timer;
-            let activeRequest;
+            let activeRequest = null;
+
+            const applyProductView = () => {
+                const productGrid = results.querySelector('.product-grid');
+                if (productGrid) productGrid.classList.toggle('is-list', !cardView);
+                toggleView.textContent = cardView ? 'Afficher en liste' : 'Afficher en cartes';
+            };
 
             const filterUrl = (categoryUrl = window.location.href) => {
                 const url = new URL(categoryUrl, window.location.origin);
@@ -58,21 +69,25 @@
 
             const updateResults = async (url, historyMode = 'replace') => {
                 activeRequest?.abort();
-                activeRequest = new AbortController();
+                const request = new AbortController();
+                activeRequest = request;
                 results.setAttribute('aria-busy', 'true');
                 try {
                     const response = await fetch(url, {
                         headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' },
-                        signal: activeRequest.signal,
+                        signal: request.signal,
                     });
+                    if (request !== activeRequest) return;
                     if (!response.ok) throw new Error('Impossible de charger les produits.');
                     const html = await response.text();
+                    if (request !== activeRequest) return;
                     const fragment = document.createElement('div');
                     fragment.innerHTML = html;
                     const nextResults = fragment.querySelector('#menu-results-content');
                     if (!nextResults) throw new Error('La réponse du menu est invalide.');
 
                     results.innerHTML = nextResults.innerHTML;
+                    applyProductView();
                     count.textContent = nextResults.dataset.countLabel;
                     filters.querySelectorAll('[data-menu-filter]').forEach((link) => {
                         const linkCategory = new URL(link.href).searchParams.get('category');
@@ -85,17 +100,22 @@
                         window.history.replaceState({}, '', url);
                     }
                 } catch (error) {
-                    if (error.name !== 'AbortError') {
+                    if (error.name !== 'AbortError' && request === activeRequest) {
+                        console.error('Échec de la recherche du menu.', error);
                         results.innerHTML = '<p class="errors" role="alert">La recherche a échoué. Veuillez réessayer.</p>';
                     }
                 } finally {
-                    results.removeAttribute('aria-busy');
+                    if (request === activeRequest) results.removeAttribute('aria-busy');
                 }
             };
 
             input.addEventListener('input', () => {
                 window.clearTimeout(timer);
-                timer = window.setTimeout(() => updateResults(filterUrl()), 250);
+                timer = window.setTimeout(() => updateResults(filterUrl()), 150);
+            });
+            toggleView.addEventListener('click', () => {
+                cardView = !cardView;
+                applyProductView();
             });
             form.addEventListener('submit', (event) => {
                 event.preventDefault();

@@ -12,13 +12,15 @@
 
         <div class="admin-grid">
             <section class="panel panel-wide">
-                <h2>Informations du bar</h2><p class="panel-intro">Ces informations sont visibles sur votre menu public.</p>
+                <h2>Informations de l’établissement</h2><p class="panel-intro">Ces informations sont visibles sur votre menu public.</p>
                 <form method="POST" action="{{ route('owner.company.update') }}" enctype="multipart/form-data">
                     @csrf @method('PUT')
                     <div class="form-grid">
                         <div class="form-group"><label for="company-name">Nom de l’établissement</label><input class="field" id="company-name" name="name" value="{{ old('name', $company->name) }}" required></div>
+                        <div class="form-group"><label for="activity-type">Type d’activité</label><input class="field" id="activity-type" name="activity_type" value="{{ old('activity_type', $company->activity_type) }}" placeholder="Ex. Bar · Restaurant" maxlength="100" required></div>
                         <div class="form-group"><label for="company-slogan">Slogan</label><input class="field" id="company-slogan" name="slogan" value="{{ old('slogan', $company->slogan) }}"></div>
                         <div class="form-group"><label for="company-address">Adresse</label><input class="field" id="company-address" name="address" value="{{ old('address', $company->address) }}"></div>
+                        <div class="form-group"><label for="company-whatsapp">Numéro WhatsApp</label><input class="field" id="company-whatsapp" type="tel" name="whatsapp_number" value="{{ old('whatsapp_number', $company->whatsapp_number ? '+'.$company->whatsapp_number : '') }}" placeholder="+2250700000000" autocomplete="tel"><small>Indicatif du pays obligatoire, sans espaces (ex. +225…). Vide pour désactiver le contact.</small></div>
                         <div class="form-group"><label for="company-logo">Logo</label><input class="field" id="company-logo" type="file" name="logo" accept="image/*"><small>Image carrée conseillée · 2 Mo maximum</small></div>
                         <div class="form-group"><label for="theme-color">Couleur du thème</label><input class="field" id="theme-color" type="color" name="theme_color" value="{{ old('theme_color', $company->theme_color) }}" style="height:44px;padding:5px"></div>
                         <div class="form-group"><label for="currency">Devise des prix</label><select class="select" id="currency" name="currency"><option value="F" @selected(old('currency', $company->currency) === 'F')>F</option><option value="$" @selected(old('currency', $company->currency) === '$')>$</option></select></div>

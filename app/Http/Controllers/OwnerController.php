@@ -57,8 +57,10 @@ class OwnerController extends Controller
         $company = Company::firstOrFail();
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'activity_type' => ['required', 'string', 'max:100'],
             'slogan' => ['nullable', 'string', 'max:180'],
             'address' => ['nullable', 'string', 'max:180'],
+            'whatsapp_number' => ['nullable', 'string', 'max:16', 'regex:/^\+?[1-9][0-9]{7,14}$/'],
             'theme_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'currency' => ['required', Rule::in(['$', 'F'])],
             'exchange_rate' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
@@ -71,13 +73,17 @@ class OwnerController extends Controller
         }
         unset($data['logo']);
 
+        if (! empty($data['whatsapp_number'])) {
+            $data['whatsapp_number'] = ltrim($data['whatsapp_number'], '+');
+        }
+
         if (empty($data['owner_code'])) {
             unset($data['owner_code']);
         }
 
         $company->update($data);
 
-        return back()->with('success', 'Les informations du bar ont été mises à jour.');
+        return back()->with('success', 'Les informations de l’établissement ont été mises à jour.');
     }
 
     public function storeCategory(Request $request): RedirectResponse

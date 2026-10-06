@@ -20,7 +20,7 @@ Ouvrir `http://127.0.0.1:8000`. Le seeder crée l’établissement de démonstra
 ## Fonctionnalités
 
 - Menu public avec recherche par nom/description et filtres par catégorie ou sous-catégorie.
-- Gestion du nom, slogan, adresse, logo, couleur du thème, devise (`$` ou `F`) et taux de conversion.
+- Gestion du nom, type d’activité, slogan, adresse, numéro WhatsApp, logo, couleur du thème, devise (`$` ou `F`) et taux de conversion.
 - Gestion des catégories principales, sous-catégories et produits (nom, description, prix, visibilité).
 - Les images de logo sont stockées sur le disque public Laravel.
 - Les prix du menu sont exprimés dans la devise sélectionnée. Le taux est exprimé en F pour 1 $.

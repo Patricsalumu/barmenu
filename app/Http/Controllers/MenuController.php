@@ -12,27 +12,23 @@ class MenuController extends Controller
 {
     public function index(Request $request): View|Response
     {
-        $company = Company::with([
-            'categories.children',
-            'categories.products' => fn ($query) => $query->where('is_available', true)->orderBy('name'),
-        ])->firstOrFail();
+        $company = Company::firstOrFail();
 
-        $categories = $company->categories->whereNull('parent_id')->values();
         $selectedCategory = $request->integer('category');
         $search = trim((string) $request->query('q', ''));
+        $filterCategory = null;
 
-        if ($selectedCategory && ! Category::where('company_id', $company->id)->whereKey($selectedCategory)->exists()) {
-            abort(404);
+        if ($selectedCategory) {
+            $filterCategory = Category::where('company_id', $company->id)->findOrFail($selectedCategory);
         }
 
         $products = $company->products()
             ->with('category.parent')
             ->where('is_available', true)
-            ->when($selectedCategory, function ($query) use ($selectedCategory) {
-                $category = Category::findOrFail($selectedCategory);
-                $ids = $category->parent_id
-                    ? [$category->id]
-                    : $category->children()->pluck('id')->prepend($category->id)->all();
+            ->when($filterCategory, function ($query) use ($filterCategory) {
+                $ids = $filterCategory->parent_id
+                    ? [$filterCategory->id]
+                    : $filterCategory->children()->pluck('id')->prepend($filterCategory->id)->all();
 
                 $query->whereIn('category_id', $ids);
             })
@@ -46,6 +42,8 @@ class MenuController extends Controller
         if ($request->ajax()) {
             return response()->view('menu.results', compact('company', 'products'));
         }
+
+        $categories = $company->categories()->with('children')->get()->whereNull('parent_id')->values();
 
         return view('menu.index', compact('company', 'categories', 'products', 'selectedCategory', 'search'));
     }

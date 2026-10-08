@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Le Comptoir',
                 'activity_type' => 'Bar · Restaurant',
+                'subdomain' => 'lecomptoir',
                 'slogan' => 'Le goût des bons moments',
                 'address' => 'Centre-ville',
                 'theme_color' => '#c83b32',

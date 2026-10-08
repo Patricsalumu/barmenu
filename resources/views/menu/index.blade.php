@@ -10,7 +10,7 @@
             <p>{{ $company->slogan }}</p>
             <div class="hero-meta">
                 @if($company->address)<span>⌖ {{ $company->address }}</span>@endif
-                <span>✦ Une carte préparée avec passion</span>
+                @if($company->menu_tagline)<span>{{ $company->menu_tagline }}</span>@endif
             </div>
         </section>
 
@@ -22,12 +22,16 @@
                 </div>
             </div>
             <nav class="filters" aria-label="Filtrer par catégorie">
-                <a class="chip {{ !$selectedCategory ? 'active' : '' }}" data-menu-filter href="{{ route('menu', ['q' => $search ?: null]) }}">Tout</a>
+                <a class="chip {{ !$selectedCategory ? 'active' : '' }}" data-menu-filter data-category-id="" href="{{ route('menu', ['q' => $search ?: null]) }}">Tout</a>
                 @foreach($categories as $category)
-                    <a class="chip {{ $selectedCategory === $category->id ? 'active' : '' }}" data-menu-filter href="{{ route('menu', ['category' => $category->id, 'q' => $search ?: null]) }}">{{ $category->name }}</a>
-                    @foreach($category->children as $child)
-                        <a class="chip {{ $selectedCategory === $child->id ? 'active' : '' }}" data-menu-filter href="{{ route('menu', ['category' => $child->id, 'q' => $search ?: null]) }}">{{ $child->name }}</a>
-                    @endforeach
+                    <a class="chip {{ $selectedCategory === $category->id ? 'active' : '' }}" data-menu-filter data-category-id="{{ $category->id }}" href="{{ route('menu', ['category' => $category->id, 'q' => $search ?: null]) }}">{{ $category->name }}</a>
+                    @if($category->children->isNotEmpty())
+                        <div class="subcategory-filters" data-subcategory-group="{{ $category->id }}" aria-label="Sous-catégories de {{ $category->name }}" @if($expandedCategoryId !== $category->id) hidden @endif>
+                            @foreach($category->children as $child)
+                                <a class="chip {{ $selectedCategory === $child->id ? 'active' : '' }}" data-menu-filter data-category-id="{{ $child->id }}" data-parent-category="{{ $category->id }}" href="{{ route('menu', ['category' => $child->id, 'q' => $search ?: null]) }}">↳ {{ $child->name }}</a>
+                            @endforeach
+                        </div>
+                    @endif
                 @endforeach
             </nav>
             <form class="search-form" id="menu-search" method="GET" action="{{ route('menu') }}" role="search">
@@ -55,6 +59,18 @@
                 const productGrid = results.querySelector('.product-grid');
                 if (productGrid) productGrid.classList.toggle('is-list', !cardView);
                 toggleView.textContent = cardView ? 'Afficher en liste' : 'Afficher en cartes';
+            };
+
+            const applyCategoryState = (selectedCategory) => {
+                const selectedLink = filters.querySelector(`[data-category-id="${selectedCategory || ''}"]`);
+                const expandedCategory = selectedLink?.dataset.parentCategory || selectedCategory;
+
+                filters.querySelectorAll('[data-menu-filter]').forEach((link) => {
+                    link.classList.toggle('active', link.dataset.categoryId === (selectedCategory || ''));
+                });
+                filters.querySelectorAll('[data-subcategory-group]').forEach((group) => {
+                    group.hidden = group.dataset.subcategoryGroup !== expandedCategory;
+                });
             };
 
             const filterUrl = (categoryUrl = window.location.href) => {
@@ -89,11 +105,7 @@
                     results.innerHTML = nextResults.innerHTML;
                     applyProductView();
                     count.textContent = nextResults.dataset.countLabel;
-                    filters.querySelectorAll('[data-menu-filter]').forEach((link) => {
-                        const linkCategory = new URL(link.href).searchParams.get('category');
-                        const selectedCategory = url.searchParams.get('category');
-                        link.classList.toggle('active', linkCategory === selectedCategory);
-                    });
+                    applyCategoryState(url.searchParams.get('category'));
                     if (historyMode === 'push') {
                         window.history.pushState({}, '', url);
                     } else if (historyMode === 'replace') {
@@ -132,6 +144,7 @@
             window.addEventListener('popstate', () => {
                 const url = new URL(window.location.href);
                 input.value = url.searchParams.get('q') || '';
+                applyCategoryState(url.searchParams.get('category'));
                 updateResults(url, 'none');
             });
         })();

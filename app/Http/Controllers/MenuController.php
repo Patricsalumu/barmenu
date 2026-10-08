@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\ResolveCompany;
 use App\Models\Category;
-use App\Models\Company;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Contracts\View\View;
@@ -12,15 +12,26 @@ class MenuController extends Controller
 {
     public function index(Request $request): View|Response
     {
-        $company = Company::firstOrFail();
+        $company = $request->attributes->get('company') ?? ResolveCompany::currentCompany($request);
+
+        if (! $company) {
+            if (ResolveCompany::isTenantRequest($request)) {
+                abort(404, 'Entreprise introuvable.');
+            }
+
+            return response()->view('menu.landing');
+        }
 
         $selectedCategory = $request->integer('category');
         $search = trim((string) $request->query('q', ''));
         $filterCategory = null;
 
         if ($selectedCategory) {
-            $filterCategory = Category::where('company_id', $company->id)->findOrFail($selectedCategory);
+            $filterCategory = $company->categories()->findOrFail($selectedCategory);
         }
+        $expandedCategoryId = $filterCategory
+            ? ($filterCategory->parent_id ?? $filterCategory->id)
+            : null;
 
         $products = $company->products()
             ->with('category.parent')
@@ -45,6 +56,6 @@ class MenuController extends Controller
 
         $categories = $company->categories()->with('children')->get()->whereNull('parent_id')->values();
 
-        return view('menu.index', compact('company', 'categories', 'products', 'selectedCategory', 'search'));
+        return view('menu.index', compact('company', 'categories', 'products', 'selectedCategory', 'expandedCategoryId', 'search'));
     }
 }

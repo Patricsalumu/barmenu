@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'default_tenant_subdomain' => env('APP_DEFAULT_TENANT_SUBDOMAIN', 'lecomptoir'),
+
+    'tenant_domains' => env('APP_TENANT_DOMAINS', 'barmenu.site,barmenu.test,localhost,127.0.0.1'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

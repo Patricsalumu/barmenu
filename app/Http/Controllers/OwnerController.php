@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\ResolveCompany;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Product;
@@ -13,15 +14,22 @@ use Illuminate\View\View;
 
 class OwnerController extends Controller
 {
-    public function login(): View
+    public function login(Request $request): View
     {
-        return view('owner.login', ['company' => Company::firstOrFail()]);
+        $company = ResolveCompany::currentCompany($request);
+
+        abort_unless($company, 404, 'Entreprise introuvable.');
+
+        return view('owner.login', compact('company'));
     }
 
     public function authenticate(Request $request): RedirectResponse
     {
+        $company = ResolveCompany::currentCompany($request);
+
+        abort_unless($company, 404, 'Entreprise introuvable.');
+
         $credentials = $request->validate(['code' => ['required', 'string', 'max:30']]);
-        $company = Company::firstOrFail();
 
         if (! Hash::check($credentials['code'], $company->owner_code)) {
             return back()->withErrors(['code' => 'Code incorrect. Veuillez réessayer.']);
@@ -29,6 +37,7 @@ class OwnerController extends Controller
 
         $request->session()->regenerate();
         $request->session()->put('owner_authenticated', true);
+        $request->session()->put('owner_company_id', $company->id);
 
         return redirect()->route('owner.dashboard');
     }
@@ -41,12 +50,10 @@ class OwnerController extends Controller
         return redirect()->route('menu');
     }
 
-    public function dashboard(): View
+    public function dashboard(Request $request): View
     {
-        $company = Company::with([
-            'categories.children',
-            'categories.products',
-        ])->firstOrFail();
+        $company = $this->currentCompany($request);
+        $company->load(['categories.children', 'categories.products']);
         $categories = $company->categories;
 
         return view('owner.dashboard', compact('company', 'categories'));
@@ -54,11 +61,12 @@ class OwnerController extends Controller
 
     public function updateCompany(Request $request): RedirectResponse
     {
-        $company = Company::firstOrFail();
+        $company = $this->currentCompany($request);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'activity_type' => ['required', 'string', 'max:100'],
             'slogan' => ['nullable', 'string', 'max:180'],
+            'menu_tagline' => ['nullable', 'string', 'max:180'],
             'address' => ['nullable', 'string', 'max:180'],
             'whatsapp_number' => ['nullable', 'string', 'max:16', 'regex:/^\+?[1-9][0-9]{7,14}$/'],
             'theme_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
@@ -88,7 +96,7 @@ class OwnerController extends Controller
 
     public function storeCategory(Request $request): RedirectResponse
     {
-        $company = Company::firstOrFail();
+        $company = $this->currentCompany($request);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:80'],
             'parent_id' => [
@@ -103,16 +111,18 @@ class OwnerController extends Controller
 
     public function updateCategory(Request $request, Category $category): RedirectResponse
     {
-        $this->ensureCompanyCategory($category);
+        $company = $this->currentCompany($request);
+        $this->ensureCompanyCategory($company, $category);
         $data = $request->validate(['name' => ['required', 'string', 'max:80']]);
         $category->update($data);
 
         return back()->with('success', 'La catégorie a été modifiée.');
     }
 
-    public function deleteCategory(Category $category): RedirectResponse
+    public function deleteCategory(Request $request, Category $category): RedirectResponse
     {
-        $this->ensureCompanyCategory($category);
+        $company = $this->currentCompany($request);
+        $this->ensureCompanyCategory($company, $category);
         $category->children()->delete();
         $category->delete();
 
@@ -121,7 +131,7 @@ class OwnerController extends Controller
 
     public function storeProduct(Request $request): RedirectResponse
     {
-        $company = Company::firstOrFail();
+        $company = $this->currentCompany($request);
         $data = $this->validatedProduct($request, $company);
         $company->products()->create($data);
 
@@ -130,16 +140,18 @@ class OwnerController extends Controller
 
     public function updateProduct(Request $request, Product $product): RedirectResponse
     {
-        abort_unless($product->company_id === Company::firstOrFail()->id, 404);
-        $data = $this->validatedProduct($request, $product->company, false);
+        $company = $this->currentCompany($request);
+        $product = $company->products()->findOrFail($product->id);
+        $data = $this->validatedProduct($request, $company, false);
         $product->update($data);
 
         return back()->with('success', 'Le produit a été modifié.');
     }
 
-    public function deleteProduct(Product $product): RedirectResponse
+    public function deleteProduct(Request $request, Product $product): RedirectResponse
     {
-        abort_unless($product->company_id === Company::firstOrFail()->id, 404);
+        $company = $this->currentCompany($request);
+        $product = $company->products()->findOrFail($product->id);
         $product->delete();
 
         return back()->with('success', 'Le produit a été supprimé.');
@@ -164,8 +176,17 @@ class OwnerController extends Controller
         return $data;
     }
 
-    private function ensureCompanyCategory(Category $category): void
+    private function ensureCompanyCategory(Company $company, Category $category): void
     {
-        abort_unless($category->company_id === Company::firstOrFail()->id, 404);
+        abort_unless($category->company_id === $company->id, 404);
+    }
+
+    private function currentCompany(Request $request): Company
+    {
+        $company = $request->attributes->get('company') ?? ResolveCompany::currentCompany($request);
+
+        abort_unless($company instanceof Company, 404, 'Entreprise introuvable.');
+
+        return $company;
     }
 }

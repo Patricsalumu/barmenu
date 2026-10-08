@@ -13,6 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'owner' => \App\Http\Middleware\EnsureOwnerIsAuthenticated::class,
+            'resolve.company' => \App\Http\Middleware\ResolveCompany::class,
+            'super-admin' => \App\Http\Middleware\EnsureSuperAdminIsAuthenticated::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -24,6 +24,7 @@
                         <div class="form-group"><label for="company-whatsapp">Numéro WhatsApp</label><input class="field" id="company-whatsapp" type="tel" name="whatsapp_number" value="{{ old('whatsapp_number', $company->whatsapp_number ? '+'.$company->whatsapp_number : '') }}" placeholder="+2250700000000" autocomplete="tel"><small>Indicatif du pays obligatoire, sans espaces (ex. +225…). Vide pour désactiver le contact.</small></div>
                         <div class="form-group"><label for="company-logo">Logo</label><input class="field" id="company-logo" type="file" name="logo" accept="image/*"><small>Image carrée conseillée · 2 Mo maximum</small></div>
                         <div class="form-group"><label for="theme-color">Couleur du thème</label><input class="field" id="theme-color" type="color" name="theme_color" value="{{ old('theme_color', $company->theme_color) }}" style="height:44px;padding:5px"></div>
+                        <div class="form-group"><label for="menu-layout">Présentation du menu</label><select class="select" id="menu-layout" name="menu_layout"><option value="classic" @selected(old('menu_layout', $company->menu_layout) === 'classic')>Classique</option><option value="category_grid" @selected(old('menu_layout', $company->menu_layout) === 'category_grid')>Grille de catégories</option></select><small>Choisissez la façon dont vos clients parcourent la carte.</small></div>
                         <div class="form-group"><label for="currency">Devise des prix</label><select class="select" id="currency" name="currency"><option value="F" @selected(old('currency', $company->currency) === 'F')>F</option><option value="$" @selected(old('currency', $company->currency) === '$')>$</option></select></div>
                         <div class="form-group"><label for="exchange-rate">Taux de conversion</label><input class="field" id="exchange-rate" type="number" name="exchange_rate" min="0.01" step="0.01" value="{{ old('exchange_rate', $company->exchange_rate) }}" required><small>Nombre de F pour 1 $</small></div>
                         <div class="form-group"><label for="owner-code">Nouveau code propriétaire</label><input class="field" id="owner-code" type="password" name="owner_code" minlength="4" placeholder="Laisser vide pour conserver le code actuel"><small>4 caractères minimum</small></div>
@@ -34,11 +35,12 @@
 
             <section class="panel">
                 <h2>Catégories</h2><p class="panel-intro">Créez des catégories seules ou des sous-catégories.</p>
-                <form method="POST" action="{{ route('owner.categories.store') }}">
+                <form method="POST" action="{{ route('owner.categories.store') }}" enctype="multipart/form-data">
                     @csrf
                     <div class="form-grid">
                         <div class="form-group"><label for="category-name">Nom</label><input class="field" id="category-name" name="name" placeholder="Ex. Cocktails" required></div>
                         <div class="form-group"><label for="parent-category">Sous-catégorie de</label><select class="select" id="parent-category" name="parent_id"><option value="">Aucune (catégorie principale)</option>@foreach($categories->whereNull('parent_id') as $parent)<option value="{{ $parent->id }}">{{ $parent->name }}</option>@endforeach</select></div>
+                        <div class="form-group full"><label for="category-image">Image de la catégorie</label><input class="field" id="category-image" type="file" name="image" accept="image/*"><small>Image facultative · 2 Mo maximum</small></div>
                     </div>
                     <div class="form-actions"><button class="button button-small" type="submit">+ Ajouter</button></div>
                 </form>
@@ -46,13 +48,13 @@
                     @forelse($categories->whereNull('parent_id') as $category)
                         <div class="category-admin">
                             <div class="list-row">
-                                <form class="inline-edit" method="POST" action="{{ route('owner.categories.update', $category) }}">@csrf @method('PUT')<input class="field" name="name" value="{{ $category->name }}" aria-label="Nom de {{ $category->name }}"><button class="button button-outline button-small" type="submit">OK</button></form>
+                                <form class="inline-edit" method="POST" action="{{ route('owner.categories.update', $category) }}" enctype="multipart/form-data">@csrf @method('PUT')<input class="field" name="name" value="{{ $category->name }}" aria-label="Nom de {{ $category->name }}"><label class="category-image-field">Image<input class="field" type="file" name="image" accept="image/*" aria-label="Nouvelle image de {{ $category->name }}"></label><button class="button button-outline button-small" type="submit">Enregistrer</button></form>
                                 <form method="POST" action="{{ route('owner.categories.destroy', $category) }}" onsubmit="return confirm('Supprimer cette catégorie et tous ses produits ?')">@csrf @method('DELETE')<button class="button button-small danger" type="submit">Supprimer</button></form>
                             </div>
                             @foreach($category->children as $child)
                                 <div class="category-admin-child">
                                     <div class="list-row">
-                                        <form class="inline-edit" method="POST" action="{{ route('owner.categories.update', $child) }}">@csrf @method('PUT')<input class="field" name="name" value="{{ $child->name }}" aria-label="Nom de {{ $child->name }}"><button class="button button-outline button-small" type="submit">OK</button></form>
+                                        <form class="inline-edit" method="POST" action="{{ route('owner.categories.update', $child) }}" enctype="multipart/form-data">@csrf @method('PUT')<input class="field" name="name" value="{{ $child->name }}" aria-label="Nom de {{ $child->name }}"><label class="category-image-field">Image<input class="field" type="file" name="image" accept="image/*" aria-label="Nouvelle image de {{ $child->name }}"></label><button class="button button-outline button-small" type="submit">Enregistrer</button></form>
                                         <form method="POST" action="{{ route('owner.categories.destroy', $child) }}" onsubmit="return confirm('Supprimer cette sous-catégorie et ses produits ?')">@csrf @method('DELETE')<button class="button button-small danger" type="submit">×</button></form>
                                     </div>
                                 </div>

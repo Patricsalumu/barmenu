@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
+use App\Models\Company;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class MenuTest extends TestCase
@@ -32,7 +36,7 @@ class MenuTest extends TestCase
 
     public function test_menu_can_be_filtered_by_subcategory_and_search(): void
     {
-        $coldCategory = \App\Models\Category::where('name', 'Froid')->firstOrFail();
+        $coldCategory = Category::where('name', 'Froid')->firstOrFail();
 
         $this->get('/?category='.$coldCategory->id)
             ->assertOk()
@@ -45,9 +49,113 @@ class MenuTest extends TestCase
             ->assertDontSee('Bière blonde');
     }
 
+    public function test_category_grid_menu_opens_main_and_subcategories_before_products(): void
+    {
+        $company = Company::findOrFail(1);
+        $company->update(['menu_layout' => 'category_grid']);
+        $parent = Category::where('name', 'Food')->firstOrFail();
+        $child = $parent->children()->where('name', 'Plats')->firstOrFail();
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('grid-menu-intro')
+            ->assertSee('Nos catégories')
+            ->assertSee('Food')
+            ->assertDontSee('Contacter sur WhatsApp')
+            ->assertDontSee('wa.me/')
+            ->assertDontSee('Poulet braisé')
+            ->assertDontSee('Afficher en cartes');
+
+        $this->get('/?category='.$parent->id)
+            ->assertOk()
+            ->assertSee('grid-subcategory-container')
+            ->assertSee('Entrées')
+            ->assertSee('Plats')
+            ->assertDontSee('Poulet braisé');
+
+        $this->get('/?category='.$child->id)
+            ->assertOk()
+            ->assertSee('Poulet braisé')
+            ->assertDontSee('Accras de poisson');
+    }
+
+    public function test_category_grid_search_can_find_products_within_selected_category(): void
+    {
+        $company = Company::findOrFail(1);
+        $company->update(['menu_layout' => 'category_grid']);
+        $food = Category::where('name', 'Food')->firstOrFail();
+
+        $this->get('/?category='.$food->id.'&q=poulet')
+            ->assertOk()
+            ->assertSee('Poulet braisé')
+            ->assertDontSee('Accras de poisson')
+            ->assertSee('name="category" value="'.$food->id.'"', false);
+    }
+
+    public function test_owner_can_choose_the_category_grid_menu_layout(): void
+    {
+        $this->withSession(['owner_authenticated' => true, 'owner_company_id' => 1])
+            ->put('/proprietaire/entreprise', [
+                'name' => 'Le Comptoir',
+                'activity_type' => 'Bar · Restaurant',
+                'theme_color' => '#c83b32',
+                'menu_layout' => 'category_grid',
+                'currency' => 'F',
+                'exchange_rate' => 600,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('companies', ['id' => 1, 'menu_layout' => 'category_grid']);
+        $this->get('/')->assertOk()->assertSee('Nos catégories');
+    }
+
+    public function test_category_grid_shows_whatsapp_call_to_action_only_when_number_is_configured(): void
+    {
+        $company = Company::findOrFail(1);
+        $company->update(['menu_layout' => 'category_grid', 'whatsapp_number' => '2250701234567']);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('Une question, une réclamation ou une réservation ?')
+            ->assertSee('Contacter sur WhatsApp')
+            ->assertSee('https://wa.me/2250701234567?text=');
+    }
+
+    public function test_owner_can_upload_images_for_categories_and_subcategories_display_them_in_grid(): void
+    {
+        Storage::fake('public');
+        $parent = Category::where('name', 'Food')->firstOrFail();
+        $child = $parent->children()->where('name', 'Plats')->firstOrFail();
+        $ownerSession = ['owner_authenticated' => true, 'owner_company_id' => 1];
+
+        $this->withSession($ownerSession)->put(route('owner.categories.update', $parent), [
+            'name' => 'Food',
+            'image' => UploadedFile::fake()->image('food.jpg'),
+        ])->assertSessionHasNoErrors();
+
+        $this->withSession($ownerSession)->put(route('owner.categories.update', $child), [
+            'name' => 'Plats',
+            'image' => UploadedFile::fake()->image('plats.jpg'),
+        ])->assertSessionHasNoErrors();
+
+        $parent->refresh();
+        $child->refresh();
+        Storage::disk('public')->assertExists($parent->image_path);
+        Storage::disk('public')->assertExists($child->image_path);
+
+        Company::findOrFail(1)->update(['menu_layout' => 'category_grid']);
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('storage/'.$parent->image_path);
+        $this->get('/?category='.$parent->id)
+            ->assertOk()
+            ->assertSee('storage/'.$child->image_path);
+    }
+
     public function test_subcategories_are_hidden_until_their_parent_is_selected(): void
     {
-        $parent = \App\Models\Category::where('name', 'Food')->firstOrFail();
+        $parent = Category::where('name', 'Food')->firstOrFail();
         $child = $parent->children()->where('name', 'Entrées')->firstOrFail();
         $groupSelector = '<div class="subcategory-filters" data-subcategory-group="'.$parent->id.'" aria-label="Sous-catégories de Food"';
 
@@ -65,7 +173,7 @@ class MenuTest extends TestCase
 
     public function test_ajax_menu_filter_returns_only_matching_results_without_search_buttons(): void
     {
-        $category = \App\Models\Category::where('name', 'Soft')->firstOrFail();
+        $category = Category::where('name', 'Soft')->firstOrFail();
 
         $this->get('/?category='.$category->id.'&q=eau', ['X-Requested-With' => 'XMLHttpRequest'])
             ->assertOk()
@@ -98,7 +206,7 @@ class MenuTest extends TestCase
 
     public function test_owner_can_add_a_product_to_the_public_menu(): void
     {
-        $category = \App\Models\Category::where('name', 'Soft')->firstOrFail();
+        $category = Category::where('name', 'Soft')->firstOrFail();
         $response = $this->withSession(['owner_authenticated' => true, 'owner_company_id' => 1])
             ->post('/proprietaire/produits', [
                 'category_id' => $category->id,
@@ -123,6 +231,7 @@ class MenuTest extends TestCase
                 'address' => 'Centre-ville',
                 'whatsapp_number' => '+2250701234567',
                 'theme_color' => '#c83b32',
+                'menu_layout' => 'classic',
                 'currency' => 'F',
                 'exchange_rate' => 600,
             ])
@@ -133,6 +242,7 @@ class MenuTest extends TestCase
             'activity_type' => 'Café culturel',
             'whatsapp_number' => '2250701234567',
             'menu_tagline' => '✦ Des saveurs à partager',
+            'menu_layout' => 'classic',
         ]);
         $response = $this->get('/')
             ->assertOk()
@@ -185,7 +295,7 @@ class MenuTest extends TestCase
 
     public function test_tenant_subdomain_resolves_locally_under_localhost(): void
     {
-        $company = \App\Models\Company::create([
+        $company = Company::create([
             'name' => 'Habibi',
             'subdomain' => 'habibi-local',
             'activity_type' => 'Restaurant',
@@ -224,7 +334,7 @@ class MenuTest extends TestCase
 
     public function test_tenant_isolation_prevents_cross_company_access(): void
     {
-        $secondCompany = \App\Models\Company::create([
+        $secondCompany = Company::create([
             'name' => 'Habibi',
             'subdomain' => 'habibi',
             'activity_type' => 'Restaurant',
@@ -252,7 +362,7 @@ class MenuTest extends TestCase
 
     public function test_foreign_resource_cannot_be_modified_from_another_company(): void
     {
-        $secondCompany = \App\Models\Company::create([
+        $secondCompany = Company::create([
             'name' => 'Habibi',
             'subdomain' => 'habibi-foreign',
             'activity_type' => 'Restaurant',

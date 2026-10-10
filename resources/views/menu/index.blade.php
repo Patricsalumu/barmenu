@@ -4,45 +4,147 @@
 
 @section('content')
     <main>
-        <section class="hero">
-            <div class="eyebrow">{{ $company->activity_type }}</div>
-            <h1>{{ $company->name }}</h1>
-            <p>{{ $company->slogan }}</p>
-            <div class="hero-meta">
-                @if($company->address)<span>⌖ {{ $company->address }}</span>@endif
-                @if($company->menu_tagline)<span>{{ $company->menu_tagline }}</span>@endif
-            </div>
-        </section>
-
-        <section aria-labelledby="menu-heading">
-            <div class="section-heading">
-                <div><div class="eyebrow">À découvrir</div><h2 id="menu-heading">Notre carte</h2><p id="result-count" aria-live="polite">{{ $products->count() }} produit{{ $products->count() > 1 ? 's' : '' }} disponible{{ $products->count() > 1 ? 's' : '' }}</p></div>
-                <div class="heading-actions">
-                    <button class="button button-outline button-small" id="toggle-product-view" type="button">Afficher en cartes</button>
-                </div>
-            </div>
-            <nav class="filters" aria-label="Filtrer par catégorie">
-                <a class="chip {{ !$selectedCategory ? 'active' : '' }}" data-menu-filter data-category-id="" href="{{ route('menu', ['q' => $search ?: null]) }}">Tout</a>
-                @foreach($categories as $category)
-                    <a class="chip {{ $selectedCategory === $category->id ? 'active' : '' }}" data-menu-filter data-category-id="{{ $category->id }}" href="{{ route('menu', ['category' => $category->id, 'q' => $search ?: null]) }}">{{ $category->name }}</a>
-                    @if($category->children->isNotEmpty())
-                        <div class="subcategory-filters" data-subcategory-group="{{ $category->id }}" aria-label="Sous-catégories de {{ $category->name }}" @if($expandedCategoryId !== $category->id) hidden @endif>
-                            @foreach($category->children as $child)
-                                <a class="chip {{ $selectedCategory === $child->id ? 'active' : '' }}" data-menu-filter data-category-id="{{ $child->id }}" data-parent-category="{{ $category->id }}" href="{{ route('menu', ['category' => $child->id, 'q' => $search ?: null]) }}">↳ {{ $child->name }}</a>
-                            @endforeach
+        @if($company->menu_layout === 'category_grid')
+            @php
+                $selectedParentCategory = $categories->firstWhere('id', $expandedCategoryId);
+                $showGridHome = ! $selectedCategory && $search === '';
+                $showGridSubcategories = $selectedCategory
+                    && $selectedCategory === $expandedCategoryId
+                    && $selectedParentCategory?->children->isNotEmpty()
+                    && $search === '';
+            @endphp
+            <section class="grid-menu-intro" aria-label="Présentation de {{ $company->name }}">
+                @if($company->logo_path)
+                    <img class="grid-menu-logo" src="{{ asset('storage/'.$company->logo_path) }}" alt="Logo {{ $company->name }}">
+                @else
+                    <div class="grid-menu-logo-placeholder" aria-hidden="true">{{ mb_substr($company->name, 0, 1) }}</div>
+                @endif
+                <div>
+                    <div class="eyebrow">{{ $company->activity_type }}</div>
+                    <h1>{{ $company->name }}</h1>
+                    @if($company->slogan)<p>{{ $company->slogan }}</p>@endif
+                    <div class="grid-menu-meta">
+                        @if($company->address)<span>⌖ {{ $company->address }}</span>@endif
+                        @if($company->menu_tagline)<span>{{ $company->menu_tagline }}</span>@endif
+                    </div>
+                    @if($company->whatsapp_number)
+                        <div class="grid-whatsapp-cta">
+                            <p>Une question, une réclamation ou une réservation ?</p>
+                            <a class="button" href="https://wa.me/{{ $company->whatsapp_number }}?text={{ rawurlencode('Salut '.$company->name.', je vous contacte au sujet d’une question, d’une réclamation ou d’une réservation.') }}" target="_blank" rel="noopener noreferrer" aria-label="Contacter {{ $company->name }} par WhatsApp pour une question, une réclamation ou une réservation">
+                                Contacter sur WhatsApp ↗
+                            </a>
                         </div>
                     @endif
-                @endforeach
-            </nav>
-            <form class="search-form" id="menu-search" method="GET" action="{{ route('menu') }}" role="search">
-                <input class="field" id="menu-search-input" type="search" name="q" value="{{ $search }}" placeholder="Rechercher un produit…" aria-label="Rechercher un produit">
+                </div>
+            </section>
+
+            <form class="search-form grid-search" method="GET" action="{{ route('menu') }}" role="search">
+                @if($selectedCategory)<input type="hidden" name="category" value="{{ $selectedCategory }}">@endif
+                <input class="field" type="search" name="q" value="{{ $search }}" placeholder="Rechercher un produit…" aria-label="Rechercher un produit">
             </form>
 
-            <div id="menu-results">
-                @include('menu.results')
-            </div>
-        </section>
+            @if($showGridHome)
+                <section class="grid-menu-section" aria-labelledby="category-heading">
+                    <div class="grid-menu-heading"><div><div class="eyebrow">À découvrir</div><h2 id="category-heading">Nos catégories</h2></div></div>
+                    @if($categories->isNotEmpty())
+                        <div class="grid-category-grid">
+                            @foreach($categories as $category)
+                                <a class="grid-category-card" href="{{ route('menu', ['category' => $category->id]) }}">
+                                    <span class="grid-category-card-content">
+                                        <h3>{{ $category->name }}</h3>
+                                        <span class="grid-category-description">{{ $category->children->isNotEmpty() ? 'Découvrez nos sous-catégories' : 'Voir les produits disponibles' }}</span>
+                                        <span class="category-arrow">Explorer →</span>
+                                    </span>
+                                    @if($category->image_path)
+                                        <img class="grid-category-image" src="{{ asset('storage/'.$category->image_path) }}" alt="" loading="lazy">
+                                    @else
+                                        <span class="grid-category-image grid-category-image-placeholder" aria-hidden="true">{{ mb_substr($category->name, 0, 1) }}</span>
+                                    @endif
+                                </a>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="grid-menu-empty">Les catégories seront bientôt disponibles.</div>
+                    @endif
+                </section>
+            @elseif($showGridSubcategories)
+                <section class="grid-menu-section" aria-labelledby="subcategory-heading">
+                    <a class="grid-back-link" href="{{ route('menu') }}">← Toutes les catégories</a>
+                    <div class="grid-subcategory-container">
+                        <div class="grid-menu-heading"><div><div class="eyebrow">Catégorie</div><h2 id="subcategory-heading">{{ $selectedParentCategory->name }}</h2></div></div>
+                        <div class="grid-category-grid">
+                            @foreach($selectedParentCategory->children as $child)
+                                <a class="grid-category-card" href="{{ route('menu', ['category' => $child->id]) }}">
+                                    <span class="grid-category-card-content">
+                                        <h3>{{ $child->name }}</h3>
+                                        <span class="grid-category-description">Voir les produits disponibles</span>
+                                        <span class="category-arrow">Découvrir →</span>
+                                    </span>
+                                    @if($child->image_path)
+                                        <img class="grid-category-image" src="{{ asset('storage/'.$child->image_path) }}" alt="" loading="lazy">
+                                    @else
+                                        <span class="grid-category-image grid-category-image-placeholder" aria-hidden="true">{{ mb_substr($child->name, 0, 1) }}</span>
+                                    @endif
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                </section>
+            @else
+                @if($selectedCategory && $search === '')
+                    <a class="grid-back-link" href="{{ route('menu', $selectedParentCategory?->id !== $selectedCategory ? ['category' => $expandedCategoryId] : []) }}">← {{ $selectedParentCategory?->id !== $selectedCategory ? $selectedParentCategory?->name : 'Toutes les catégories' }}</a>
+                @endif
+                <section class="grid-product-section" aria-labelledby="menu-heading">
+                    <div class="section-heading">
+                        <div><div class="eyebrow">À découvrir</div><h2 id="menu-heading">Notre carte</h2><p>{{ $products->count() }} produit{{ $products->count() > 1 ? 's' : '' }} disponible{{ $products->count() > 1 ? 's' : '' }}</p></div>
+                    </div>
+                    <div id="menu-results">
+                        @include('menu.results')
+                    </div>
+                </section>
+            @endif
+        @else
+            <section class="hero">
+                <div class="eyebrow">{{ $company->activity_type }}</div>
+                <h1>{{ $company->name }}</h1>
+                <p>{{ $company->slogan }}</p>
+                <div class="hero-meta">
+                    @if($company->address)<span>⌖ {{ $company->address }}</span>@endif
+                    @if($company->menu_tagline)<span>{{ $company->menu_tagline }}</span>@endif
+                </div>
+            </section>
+
+            <section aria-labelledby="menu-heading">
+                <div class="section-heading">
+                    <div><div class="eyebrow">À découvrir</div><h2 id="menu-heading">Notre carte</h2><p id="result-count" aria-live="polite">{{ $products->count() }} produit{{ $products->count() > 1 ? 's' : '' }} disponible{{ $products->count() > 1 ? 's' : '' }}</p></div>
+                    <div class="heading-actions">
+                        <button class="button button-outline button-small" id="toggle-product-view" type="button">Afficher en cartes</button>
+                    </div>
+                </div>
+                <nav class="filters" aria-label="Filtrer par catégorie">
+                    <a class="chip {{ !$selectedCategory ? 'active' : '' }}" data-menu-filter data-category-id="" href="{{ route('menu', ['q' => $search ?: null]) }}">Tout</a>
+                    @foreach($categories as $category)
+                        <a class="chip {{ $selectedCategory === $category->id ? 'active' : '' }}" data-menu-filter data-category-id="{{ $category->id }}" href="{{ route('menu', ['category' => $category->id, 'q' => $search ?: null]) }}">{{ $category->name }}</a>
+                        @if($category->children->isNotEmpty())
+                            <div class="subcategory-filters" data-subcategory-group="{{ $category->id }}" aria-label="Sous-catégories de {{ $category->name }}" @if($expandedCategoryId !== $category->id) hidden @endif>
+                                @foreach($category->children as $child)
+                                    <a class="chip {{ $selectedCategory === $child->id ? 'active' : '' }}" data-menu-filter data-category-id="{{ $child->id }}" data-parent-category="{{ $category->id }}" href="{{ route('menu', ['category' => $child->id, 'q' => $search ?: null]) }}">↳ {{ $child->name }}</a>
+                                @endforeach
+                            </div>
+                        @endif
+                    @endforeach
+                </nav>
+                <form class="search-form" id="menu-search" method="GET" action="{{ route('menu') }}" role="search">
+                    <input class="field" id="menu-search-input" type="search" name="q" value="{{ $search }}" placeholder="Rechercher un produit…" aria-label="Rechercher un produit">
+                </form>
+
+                <div id="menu-results">
+                    @include('menu.results')
+                </div>
+            </section>
+        @endif
     </main>
+    @if($company->menu_layout !== 'category_grid')
     <script>
         (() => {
             const form = document.getElementById('menu-search');
@@ -149,4 +251,5 @@
             });
         })();
     </script>
+    @endif
 @endsection

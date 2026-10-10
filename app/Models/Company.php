@@ -9,7 +9,7 @@ class Company extends Model
 {
     protected $fillable = [
         'name', 'subdomain', 'activity_type', 'slogan', 'menu_tagline', 'address', 'whatsapp_number', 'logo_path', 'theme_color',
-        'currency', 'exchange_rate', 'owner_code',
+        'menu_layout', 'currency', 'exchange_rate', 'owner_code',
     ];
 
     protected $hidden = ['owner_code'];

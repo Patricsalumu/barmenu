@@ -9,6 +9,7 @@ use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -70,6 +71,7 @@ class OwnerController extends Controller
             'address' => ['nullable', 'string', 'max:180'],
             'whatsapp_number' => ['nullable', 'string', 'max:16', 'regex:/^\+?[1-9][0-9]{7,14}$/'],
             'theme_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'menu_layout' => ['required', Rule::in(['classic', 'category_grid'])],
             'currency' => ['required', Rule::in(['$', 'F'])],
             'exchange_rate' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
             'owner_code' => ['nullable', 'string', 'min:4', 'max:30'],
@@ -99,11 +101,16 @@ class OwnerController extends Controller
         $company = $this->currentCompany($request);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:80'],
+            'image' => ['nullable', 'image', 'max:2048'],
             'parent_id' => [
                 'nullable',
                 Rule::exists('categories', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->whereNull('parent_id')),
             ],
         ]);
+        if ($request->hasFile('image')) {
+            $data['image_path'] = $request->file('image')->store('categories', 'public');
+        }
+        unset($data['image']);
         $company->categories()->create($data);
 
         return back()->with('success', 'La catégorie a été ajoutée.');
@@ -113,7 +120,21 @@ class OwnerController extends Controller
     {
         $company = $this->currentCompany($request);
         $this->ensureCompanyCategory($company, $category);
-        $data = $request->validate(['name' => ['required', 'string', 'max:80']]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:80'],
+            'image' => ['nullable', 'image', 'max:2048'],
+        ]);
+        if ($request->hasFile('image')) {
+            $previousImage = $category->image_path;
+            $data['image_path'] = $request->file('image')->store('categories', 'public');
+            unset($data['image']);
+            $category->update($data);
+            if ($previousImage) {
+                Storage::disk('public')->delete($previousImage);
+            }
+
+            return back()->with('success', 'La catégorie et son image ont été modifiées.');
+        }
         $category->update($data);
 
         return back()->with('success', 'La catégorie a été modifiée.');
@@ -123,8 +144,13 @@ class OwnerController extends Controller
     {
         $company = $this->currentCompany($request);
         $this->ensureCompanyCategory($company, $category);
+        $children = $category->children()->get();
+        $imagePaths = $children->pluck('image_path')->push($category->image_path)->filter()->all();
         $category->children()->delete();
         $category->delete();
+        if ($imagePaths) {
+            Storage::disk('public')->delete($imagePaths);
+        }
 
         return back()->with('success', 'La catégorie et ses produits ont été supprimés.');
     }
